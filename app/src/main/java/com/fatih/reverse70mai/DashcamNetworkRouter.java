@@ -173,13 +173,13 @@ public class DashcamNetworkRouter {
 
             BufferedReader br = new BufferedReader(new InputStreamReader(socket.getInputStream()));
             String statusLine = br.readLine();
-            Log.i(TAG, "70mai sensor switched to " + sensor + " (" + (sensor == 1 ? "REAR" : "FRONT") + ") -> " + statusLine);
+            AppLogger.i(context, "70mai sensor switched to " + sensor + " (" + (sensor == 1 ? "REAR" : "FRONT") + ") -> " + statusLine);
 
             socket.close();
             Thread.sleep(400); // Sensor settling delay
             return statusLine != null && statusLine.contains("200");
         } catch (Throwable t) {
-            Log.e(TAG, "Failed to switch 70mai sensor hardware to " + sensor + ": " + t.getMessage());
+            AppLogger.e(context, "Failed to switch 70mai sensor hardware to " + sensor, t);
             if (socket != null) {
                 try { socket.close(); } catch (Throwable ignored) {}
             }

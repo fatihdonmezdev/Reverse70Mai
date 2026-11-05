@@ -1,107 +1,201 @@
 <?xml version="1.0" encoding="utf-8"?>
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:background="#121418"
-    android:orientation="vertical"
-    android:padding="24dp">
+    android:fillViewport="true">
 
-    <TextView
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:text="Reverse70Mai - MG4 Geri Vites Kamerası"
-        android:textColor="#FFFFFF"
-        android:textSize="20sp"
-        android:textStyle="bold" />
-
-    <TextView
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="8dp"
-        android:text="Aracı geri vitese taktığınızda orijinal park radarını kapatmadan sağ ekranda 70mai arka kamera görüntüsünü otomatik açar."
-        android:textColor="#9CA3AF"
-        android:textSize="13sp" />
-
-    <View
-        android:layout_width="match_parent"
-        android:layout_height="1dp"
-        android:layout_marginVertical="16dp"
-        android:background="#232731" />
-
-    <!-- Durum Kartı -->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:background="#1A1D24"
         android:orientation="vertical"
-        android:padding="16dp">
+        android:padding="20dp">
 
         <TextView
-            android:id="@+id/tvStatusTitle"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="Servis Durumu"
-            android:textColor="#D1D5DB"
-            android:textSize="14sp"
+            android:text="Reverse70Mai - MG4 Geri Vites Kamerası"
+            android:textColor="#FFFFFF"
+            android:textSize="20sp"
             android:textStyle="bold" />
 
         <TextView
-            android:id="@+id/tvStatusText"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginTop="4dp"
-            android:text="Arka plan izleme servisi aktif."
-            android:textColor="#10B981"
-            android:textSize="13sp" />
+            android:text="70mai araç kamerası geri vites otomatik aktarım ve teşhis aracı."
+            android:textColor="#9CA3AF"
+            android:textSize="12sp" />
+
+        <View
+            android:layout_width="match_parent"
+            android:layout_height="1dp"
+            android:layout_marginVertical="12dp"
+            android:background="#232731" />
+
+        <!-- Durum Kartı -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:background="#1A1D24"
+            android:orientation="vertical"
+            android:padding="12dp">
+
+            <TextView
+                android:id="@+id/tvStatusTitle"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Servis ve Ağ Durumu"
+                android:textColor="#D1D5DB"
+                android:textSize="13sp"
+                android:textStyle="bold" />
+
+            <TextView
+                android:id="@+id/tvWifiInfo"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="4dp"
+                android:text="Ağ: Bekleniyor..."
+                android:textColor="#60A5FA"
+                android:textSize="12sp" />
+        </LinearLayout>
+
+        <!-- RTSP Stream URL Ayarı -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
+            android:background="#1A1D24"
+            android:orientation="vertical"
+            android:padding="12dp">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="RTSP Canlı Akış URL'si:"
+                android:textColor="#E5E7EB"
+                android:textSize="12sp"
+                android:textStyle="bold" />
+
+            <EditText
+                android:id="@+id/etRtspUrl"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="4dp"
+                android:background="#2D333F"
+                android:hint="rtsp://192.168.0.1:554/livestream/12"
+                android:padding="8dp"
+                android:textColor="#FFFFFF"
+                android:textColorHint="#6B7280"
+                android:textSize="12sp" />
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="6dp"
+                android:orientation="horizontal">
+
+                <Button
+                    android:id="@+id/btnSaveUrl"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:text="URL'yi Kaydet" />
+
+                <Space
+                    android:layout_width="8dp"
+                    android:layout_height="wrap_content" />
+
+                <Button
+                    android:id="@+id/btnScanAlternatives"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:text="Alternatifleri Tara" />
+            </LinearLayout>
+        </LinearLayout>
+
+        <!-- Hızlı Kontroller -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
+            android:orientation="horizontal">
+
+            <Button
+                android:id="@+id/btnRunDiag"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="Ağı ve Portları Test Et" />
+
+            <Space
+                android:layout_width="8dp"
+                android:layout_height="wrap_content" />
+
+            <Button
+                android:id="@+id/btnTestOverlay"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="Overlay Test (5 sn)" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="6dp"
+            android:orientation="horizontal">
+
+            <Button
+                android:id="@+id/btnSwitchFront"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="Sensör Değiştir (Ön/Arka)" />
+
+            <Space
+                android:layout_width="8dp"
+                android:layout_height="wrap_content" />
+
+            <Button
+                android:id="@+id/btnCheckUpdate"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="Güncelleme (OTA)" />
+        </LinearLayout>
 
         <TextView
-            android:id="@+id/tvWifiInfo"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_marginTop="8dp"
-            android:text="Ağ Modu: 70mai Wi-Fi (192.168.0.1) otomatik yönlendirme devrede."
-            android:textColor="#60A5FA"
-            android:textSize="12sp" />
-    </LinearLayout>
+            android:layout_marginTop="14dp"
+            android:text="Canlı Teşhis ve Sistem Logları (Backend'e iletilir):"
+            android:textColor="#9CA3AF"
+            android:textSize="12sp"
+            android:textStyle="bold" />
 
-    <LinearLayout
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="16dp"
-        android:orientation="horizontal">
-
-        <Button
-            android:id="@+id/btnTestOverlay"
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:text="Kamerayı Test Et (5 sn)" />
-
-        <Space
-            android:layout_width="12dp"
-            android:layout_height="wrap_content" />
+        <!-- Canlı Log Ekranı -->
+        <TextView
+            android:id="@+id/tvLogs"
+            android:layout_width="match_parent"
+            android:layout_height="180dp"
+            android:layout_marginTop="6dp"
+            android:background="#0A0C10"
+            android:fontFamily="monospace"
+            android:gravity="bottom"
+            android:padding="8dp"
+            android:scrollbars="vertical"
+            android:text="Loglar bekleniyor...\n"
+            android:textColor="#10B981"
+            android:textSize="10sp" />
 
         <Button
-            android:id="@+id/btnSwitchFront"
-            android:layout_width="0dp"
+            android:id="@+id/btnSendLogsNow"
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:text="Ön / Arka Sensör Testi" />
+            android:layout_marginTop="6dp"
+            android:text="Logları Şimdi Merkeze Yolla" />
+
     </LinearLayout>
-
-    <Button
-        android:id="@+id/btnCheckUpdate"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="10dp"
-        android:text="Güncellemeleri Denetle (OTA)" />
-
-    <TextView
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="20dp"
-        android:text="Önemli Bilgiler:\n1. 70mai Wi-Fi'ına bağlıyken Android 'İnternet yok' diyerek bağlantıyı kesmesin diye ağ yönlendirmesi process düzeyinde Wi-Fi'a kilitlenir.\n2. Telefonunuz 70mai kamerasına bağlıysa kapatın, kamera aynı anda tek cihaza izin verir.\n3. Geri vitesten çıkınca overlay otomatik kapanır."
-        android:textColor="#6B7280"
-        android:textSize="11sp" />
-
-</LinearLayout>
+</ScrollView>

@@ -120,14 +120,7 @@ public class Reverse70MaiService extends Service {
 
                 int windowType = WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY;
                 if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) {
-                    windowType = WindowManager.LayoutParams.TYPE_SYSTEM_ERROR;
-                } else {
-                    // Try TYPE_SYSTEM_ERROR first if available (guarantees layering above OEM EVS camera radar)
-                    try {
-                        windowType = WindowManager.LayoutParams.TYPE_SYSTEM_ERROR;
-                    } catch (Throwable ignored) {
-                        windowType = WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY;
-                    }
+                    windowType = WindowManager.LayoutParams.TYPE_PHONE;
                 }
 
                 WindowManager.LayoutParams params = new WindowManager.LayoutParams(
@@ -148,14 +141,21 @@ public class Reverse70MaiService extends Service {
                 overlayView = inflater.inflate(R.layout.overlay_camera, null);
                 surfaceOverlay = overlayView.findViewById(R.id.surfaceOverlay);
 
-                windowManager.addView(overlayView, params);
+                try {
+                    windowManager.addView(overlayView, params);
+                } catch (Throwable wt) {
+                    // Fallback to TYPE_SYSTEM_ALERT or TYPE_PHONE if overlay failed
+                    AppLogger.w(this, "Standard overlay add failed (" + wt.getMessage() + "), retrying with fallback type");
+                    params.type = WindowManager.LayoutParams.TYPE_SYSTEM_ALERT;
+                    windowManager.addView(overlayView, params);
+                }
                 isOverlayShowing = true;
 
                 // Start VLC streaming
                 startVlcStream();
-                Log.i(TAG, "Overlay attached to WindowManager (" + overlayWidth + "x" + overlayHeight + ")");
+                AppLogger.i(this, "Overlay attached to WindowManager (" + overlayWidth + "x" + overlayHeight + ", type=" + params.type + ")");
             } catch (Throwable t) {
-                Log.e(TAG, "Failed to display reverse camera overlay: " + t.getMessage(), t);
+                AppLogger.e(this, "Failed to display reverse camera overlay: " + t.getMessage(), t);
             }
         });
     }
@@ -194,18 +194,20 @@ public class Reverse70MaiService extends Service {
 
                     mediaPlayer.setEventListener(event -> {
                         if (event.type == MediaPlayer.Event.EncounteredError || event.type == MediaPlayer.Event.EndReached) {
-                            Log.w(TAG, "LibVLC stream interrupted (event=" + event.type + "), retrying in 1s...");
+                            AppLogger.w(this, "LibVLC stream interrupted (event=" + event.type + "), retrying in 1s...");
                             if (isOverlayShowing) {
                                 mainHandler.postDelayed(() -> {
                                     if (isOverlayShowing) startVlcStream();
                                 }, 1000);
                             }
                         } else if (event.type == MediaPlayer.Event.Playing) {
-                            Log.i(TAG, "70mai RTSP Rear Stream playing successfully!");
+                            AppLogger.i(this, "70mai RTSP Rear Stream playing successfully!");
                         }
                     });
 
-                    Media media = new Media(libVLC, Uri.parse(DashcamNetworkRouter.RTSP_URL));
+                    String targetUrl = StreamConfig.getActiveRtspUrl(this);
+                    AppLogger.i(this, "Connecting to RTSP Stream: " + targetUrl);
+                    Media media = new Media(libVLC, Uri.parse(targetUrl));
                     media.setHWDecoderEnabled(false, false);
                     media.addOption(":rtsp-tcp");
                     media.addOption(":network-caching=150");
