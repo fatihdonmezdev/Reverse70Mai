@@ -18,6 +18,7 @@ public class MainActivity extends Activity {
     private TextView tvWifiInfo;
     private Button btnTestOverlay;
     private Button btnSwitchFront;
+    private Button btnCheckUpdate;
 
     private boolean currentIsRear = true;
 
@@ -30,6 +31,7 @@ public class MainActivity extends Activity {
         tvWifiInfo = findViewById(R.id.tvWifiInfo);
         btnTestOverlay = findViewById(R.id.btnTestOverlay);
         btnSwitchFront = findViewById(R.id.btnSwitchFront);
+        btnCheckUpdate = findViewById(R.id.btnCheckUpdate);
 
         checkOverlayPermission();
 
@@ -54,7 +56,88 @@ public class MainActivity extends Activity {
             }).start();
         });
 
+        btnCheckUpdate.setOnClickListener(v -> checkForUpdate());
+
         updateNetworkStatus();
+    }
+
+    private void checkForUpdate() {
+        btnCheckUpdate.setEnabled(false);
+        android.widget.LinearLayout panel = new android.widget.LinearLayout(this);
+        panel.setOrientation(android.widget.LinearLayout.VERTICAL);
+        int padding = (int) (24 * getResources().getDisplayMetrics().density);
+        panel.setPadding(padding, padding, padding, padding);
+        TextView status = new TextView(this);
+        status.setText("Güncellemeler denetleniyor...");
+        status.setTextColor(0xFFFFFFFF);
+        android.widget.ProgressBar progress = new android.widget.ProgressBar(this, null,
+                android.R.attr.progressBarStyleHorizontal);
+        progress.setIndeterminate(true);
+        android.widget.LinearLayout.LayoutParams progressParams =
+                new android.widget.LinearLayout.LayoutParams(
+                        android.view.ViewGroup.LayoutParams.MATCH_PARENT,
+                        android.view.ViewGroup.LayoutParams.WRAP_CONTENT);
+        progressParams.topMargin = padding;
+        panel.addView(status);
+        panel.addView(progress, progressParams);
+
+        android.app.AlertDialog dialog = new android.app.AlertDialog.Builder(this)
+                .setTitle("OTA Güncelleme")
+                .setView(panel)
+                .setCancelable(false)
+                .create();
+        dialog.show();
+
+        new Thread(() -> {
+            String message;
+            boolean openDownloadsFolder = false;
+            try {
+                String currentVersion = getPackageManager().getPackageInfo(getPackageName(), 0).versionName;
+                OtaUpdater.Update update = OtaUpdater.check(currentVersion);
+                if (update == null) {
+                    message = "Uygulamanız güncel (v" + currentVersion + ")";
+                } else {
+                    runOnUiThread(() -> status.setText("İndiriliyor: v" + update.versionName));
+                    java.io.File apk = OtaUpdater.download(this, update, percent -> {
+                        runOnUiThread(() -> {
+                            if (percent < 0) {
+                                progress.setIndeterminate(true);
+                            } else {
+                                progress.setIndeterminate(false);
+                                progress.setMax(100);
+                                progress.setProgress(percent);
+                                status.setText("İndiriliyor: %" + percent);
+                            }
+                        });
+                    });
+
+                    if (apk != null && apk.exists()) {
+                        message = "Reverse70Mai v" + update.versionName + " indirildi. İndirilenler klasörü açılıyor, listeden dokunarak güncelleyebilirsiniz.";
+                        openDownloadsFolder = true;
+                    } else {
+                        message = "İndirme başarısız oldu. Lütfen internet bağlantınızı kontrol edin.";
+                    }
+                }
+            } catch (Exception e) {
+                message = "Güncelleme denetlenemedi: " + e.getMessage();
+            }
+
+            final String finalMsg = message;
+            final boolean shouldOpenDownloads = openDownloadsFolder;
+            runOnUiThread(() -> {
+                btnCheckUpdate.setEnabled(true);
+                dialog.dismiss();
+                new android.app.AlertDialog.Builder(this)
+                        .setTitle("OTA Güncelleme")
+                        .setMessage(finalMsg)
+                        .setPositiveButton("Tamam", (d, w) -> {
+                            if (shouldOpenDownloads) {
+                                OtaUpdater.openDownloads(this);
+                            }
+                        })
+                        .show();
+            });
+        }).start();
     }
 
     private void checkOverlayPermission() {
