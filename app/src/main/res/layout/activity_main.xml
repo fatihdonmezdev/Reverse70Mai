@@ -1,0 +1,100 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="#121418"
+    android:orientation="vertical"
+    android:padding="24dp">
+
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Reverse70Mai - MG4 Geri Vites Kamerası"
+        android:textColor="#FFFFFF"
+        android:textSize="20sp"
+        android:textStyle="bold" />
+
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="8dp"
+        android:text="Aracı geri vitese taktığınızda orijinal park radarını kapatmadan sağ ekranda 70mai arka kamera görüntüsünü otomatik açar."
+        android:textColor="#9CA3AF"
+        android:textSize="13sp" />
+
+    <View
+        android:layout_width="match_parent"
+        android:layout_height="1dp"
+        android:layout_marginVertical="16dp"
+        android:background="#232731" />
+
+    <!-- Durum Kartı -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:background="#1A1D24"
+        android:orientation="vertical"
+        android:padding="16dp">
+
+        <TextView
+            android:id="@+id/tvStatusTitle"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Servis Durumu"
+            android:textColor="#D1D5DB"
+            android:textSize="14sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:id="@+id/tvStatusText"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            android:text="Arka plan izleme servisi aktif."
+            android:textColor="#10B981"
+            android:textSize="13sp" />
+
+        <TextView
+            android:id="@+id/tvWifiInfo"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:text="Ağ Modu: 70mai Wi-Fi (192.168.0.1) otomatik yönlendirme devrede."
+            android:textColor="#60A5FA"
+            android:textSize="12sp" />
+    </LinearLayout>
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="16dp"
+        android:orientation="horizontal">
+
+        <Button
+            android:id="@+id/btnTestOverlay"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="Kamerayı Test Et (5 sn)" />
+
+        <Space
+            android:layout_width="12dp"
+            android:layout_height="wrap_content" />
+
+        <Button
+            android:id="@+id/btnSwitchFront"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="Ön / Arka Sensör Testi" />
+    </LinearLayout>
+
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="20dp"
+        android:text="Önemli Bilgiler:\n1. 70mai Wi-Fi'ına bağlıyken Android 'İnternet yok' diyerek bağlantıyı kesmesin diye ağ yönlendirmesi process düzeyinde Wi-Fi'a kilitlenir.\n2. Telefonunuz 70mai kamerasına bağlıysa kapatın, kamera aynı anda tek cihaza izin verir.\n3. Geri vitesten çıkınca overlay otomatik kapanır."
+        android:textColor="#6B7280"
+        android:textSize="11sp" />
+
+</LinearLayout>
