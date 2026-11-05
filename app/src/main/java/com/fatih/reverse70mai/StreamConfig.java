@@ -16,6 +16,7 @@ public final class StreamConfig {
 
     public static final List<String> CANDIDATE_URLS = Arrays.asList(
             "rtsp://192.168.0.1:554/livestream/12",
+            "rtsp://192.168.0.1:554/livestream/13",
             "rtsp://192.168.0.1:554/livestream/11",
             "rtsp://192.168.0.1:554/",
             "rtsp://192.168.0.1/liveRTSP/av4",

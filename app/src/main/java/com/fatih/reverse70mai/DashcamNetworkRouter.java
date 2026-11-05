@@ -165,17 +165,36 @@ public class DashcamNetworkRouter {
             socket.setSoTimeout(2500);
 
             OutputStream os = socket.getOutputStream();
-            String req = "GET /cgi-bin/setwifistream.cgi?sensor=" + sensor + " HTTP/1.1\r\n" +
+            String req1 = "GET /cgi-bin/setwifistream.cgi?sensor=" + sensor + " HTTP/1.1\r\n" +
                     "Host: " + DASHCAM_IP + "\r\n" +
                     "Connection: close\r\n\r\n";
-            os.write(req.getBytes());
+            os.write(req1.getBytes());
             os.flush();
 
             BufferedReader br = new BufferedReader(new InputStreamReader(socket.getInputStream()));
             String statusLine = br.readLine();
-            AppLogger.i(context, "70mai sensor switched to " + sensor + " (" + (sensor == 1 ? "REAR" : "FRONT") + ") -> " + statusLine);
-
+            AppLogger.i(context, "70mai setwifistream sensor=" + sensor + " -> " + statusLine);
             socket.close();
+
+            // Also send setrearview.cgi for A810/A810 Lite models
+            try {
+                Socket s2 = createWifiSocket(context);
+                s2.connect(new InetSocketAddress(DASHCAM_IP, DASHCAM_HTTP_PORT), 1500);
+                s2.setSoTimeout(1500);
+                OutputStream os2 = s2.getOutputStream();
+                String req2 = "GET /cgi-bin/setrearview.cgi?enable=" + (sensor == 1 ? "1" : "0") + " HTTP/1.1\r\n" +
+                        "Host: " + DASHCAM_IP + "\r\n" +
+                        "Connection: close\r\n\r\n";
+                os2.write(req2.getBytes());
+                os2.flush();
+                BufferedReader br2 = new BufferedReader(new InputStreamReader(s2.getInputStream()));
+                String resp2 = br2.readLine();
+                AppLogger.i(context, "70mai setrearview enable=" + (sensor == 1 ? "1" : "0") + " -> " + resp2);
+                s2.close();
+            } catch (Throwable t2) {
+                // Not all firmware models support setrearview, ignore
+            }
+
             Thread.sleep(400); // Sensor settling delay
             return statusLine != null && statusLine.contains("200");
         } catch (Throwable t) {

@@ -160,6 +160,9 @@ public class Reverse70MaiService extends Service {
         });
     }
 
+    private int currentCandidateIndex = 0;
+    private long lastStreamAttemptTime = 0;
+
     private void startVlcStream() {
         stopVlcStream();
 
@@ -194,11 +197,19 @@ public class Reverse70MaiService extends Service {
 
                     mediaPlayer.setEventListener(event -> {
                         if (event.type == MediaPlayer.Event.EncounteredError || event.type == MediaPlayer.Event.EndReached) {
-                            AppLogger.w(this, "LibVLC stream interrupted (event=" + event.type + "), retrying in 1s...");
+                            AppLogger.w(this, "LibVLC stream interrupted (event=" + event.type + ")");
                             if (isOverlayShowing) {
+                                // If stream failed quickly, cycle to next candidate URL automatically (livestream/12 -> livestream/13 etc.)
+                                long duration = System.currentTimeMillis() - lastStreamAttemptTime;
+                                if (duration < 3000) {
+                                    currentCandidateIndex = (currentCandidateIndex + 1) % StreamConfig.CANDIDATE_URLS.size();
+                                    String nextCandidate = StreamConfig.CANDIDATE_URLS.get(currentCandidateIndex);
+                                    AppLogger.i(this, "Otomatik alternatif URL deneniyor: " + nextCandidate);
+                                    StreamConfig.setActiveRtspUrl(this, nextCandidate);
+                                }
                                 mainHandler.postDelayed(() -> {
                                     if (isOverlayShowing) startVlcStream();
-                                }, 1000);
+                                }, 800);
                             }
                         } else if (event.type == MediaPlayer.Event.Playing) {
                             AppLogger.i(this, "70mai RTSP Rear Stream playing successfully!");
@@ -206,6 +217,7 @@ public class Reverse70MaiService extends Service {
                     });
 
                     String targetUrl = StreamConfig.getActiveRtspUrl(this);
+                    lastStreamAttemptTime = System.currentTimeMillis();
                     AppLogger.i(this, "Connecting to RTSP Stream: " + targetUrl);
                     Media media = new Media(libVLC, Uri.parse(targetUrl));
                     media.setHWDecoderEnabled(false, false);
