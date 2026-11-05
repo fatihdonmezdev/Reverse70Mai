@@ -160,8 +160,13 @@ public final class AppLogger {
                 }
             }
 
-            diag.put("rtsp554Reachable", testSocket("192.168.0.1", 554, 400));
-            diag.put("http80Reachable", testSocket("192.168.0.1", 80, 400));
+            DashcamModel.ModelInfo model = DashcamModel.detect(context);
+            String camIp = DashcamModel.resolveCameraIp(context, model.family);
+            diag.put("cameraModel", model.displayName);
+            diag.put("cameraFamily", model.family.name());
+            diag.put("cameraIp", camIp);
+            diag.put("rtsp554Reachable", testSocket(camIp, 554, 400));
+            diag.put("http80Reachable", testSocket(camIp, 80, 400));
         } catch (Throwable ignored) {}
         return diag;
     }

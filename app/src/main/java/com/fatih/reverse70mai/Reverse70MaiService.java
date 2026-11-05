@@ -29,6 +29,7 @@ import org.videolan.libvlc.MediaPlayer;
 import org.videolan.libvlc.interfaces.IVLCVout;
 
 import java.util.ArrayList;
+import java.util.List;
 
 /**
  * Reverse gear detector and 70mai camera stream overlay service.
@@ -53,6 +54,10 @@ public class Reverse70MaiService extends Service {
 
     private BroadcastReceiver reverseReceiver;
     private Handler mainHandler;
+
+    private volatile List<String> activeCandidates = new ArrayList<>();
+    private int currentCandidateIndex = 0;
+    private long lastStreamAttemptTime = 0;
 
     @Override
     public void onCreate() {
@@ -106,10 +111,19 @@ public class Reverse70MaiService extends Service {
             return;
         }
 
-        // 1. Switch 70mai hardware multiplexer to REAR sensor (sensor 1) in background
+        // 1. Switch 70mai hardware multiplexer to REAR sensor in background.
+        // Hisi models get the CGI command (plain + signed fallback); Mstar/Legacy
+        // models have no CGI and rely on the RTSP rear channel in the candidate list.
         new Thread(() -> {
+            DashcamModel.ModelInfo model = DashcamModel.detect(this);
+            String ip = DashcamModel.resolveCameraIp(this, model.family);
+            AppLogger.i(this, "Geri vites: " + model.displayName + " (" + model.family + ") @ " + ip);
             DashcamNetworkRouter.switchSensorHardware(this, 1);
         }).start();
+
+        // Fresh model detection and candidate ordering on every reverse event
+        currentCandidateIndex = 0;
+        activeCandidates = new ArrayList<>();
 
         mainHandler.post(() -> {
             try {
@@ -160,15 +174,17 @@ public class Reverse70MaiService extends Service {
         });
     }
 
-    private int currentCandidateIndex = 0;
-    private long lastStreamAttemptTime = 0;
-
     private void startVlcStream() {
         stopVlcStream();
 
         new Thread(() -> {
             // CRITICAL: Bind process to Wi-Fi network so RTSP traffic doesn't get routed to T-Box
             DashcamNetworkRouter.bindProcessToWifi(this);
+
+            if (activeCandidates.isEmpty()) {
+                activeCandidates = StreamConfig.buildCandidates(this);
+                AppLogger.i(this, "RTSP adayları (" + activeCandidates.size() + "): " + activeCandidates);
+            }
 
             mainHandler.post(() -> {
                 try {
@@ -199,11 +215,11 @@ public class Reverse70MaiService extends Service {
                         if (event.type == MediaPlayer.Event.EncounteredError || event.type == MediaPlayer.Event.EndReached) {
                             AppLogger.w(this, "LibVLC stream interrupted (event=" + event.type + ")");
                             if (isOverlayShowing) {
-                                // If stream failed quickly, cycle to next candidate URL automatically (livestream/12 -> livestream/13 etc.)
+                                // If stream failed quickly, cycle to next candidate URL automatically (model family paths)
                                 long duration = System.currentTimeMillis() - lastStreamAttemptTime;
-                                if (duration < 3000) {
-                                    currentCandidateIndex = (currentCandidateIndex + 1) % StreamConfig.CANDIDATE_URLS.size();
-                                    String nextCandidate = StreamConfig.CANDIDATE_URLS.get(currentCandidateIndex);
+                                if (duration < 3000 && !activeCandidates.isEmpty()) {
+                                    currentCandidateIndex = (currentCandidateIndex + 1) % activeCandidates.size();
+                                    String nextCandidate = activeCandidates.get(currentCandidateIndex);
                                     AppLogger.i(this, "Otomatik alternatif URL deneniyor: " + nextCandidate);
                                     StreamConfig.setActiveRtspUrl(this, nextCandidate);
                                 }
@@ -216,7 +232,14 @@ public class Reverse70MaiService extends Service {
                         }
                     });
 
-                    String targetUrl = StreamConfig.getActiveRtspUrl(this);
+                    String targetUrl;
+                    if (!activeCandidates.isEmpty()
+                            && currentCandidateIndex >= 0
+                            && currentCandidateIndex < activeCandidates.size()) {
+                        targetUrl = activeCandidates.get(currentCandidateIndex);
+                    } else {
+                        targetUrl = StreamConfig.getActiveRtspUrl(this);
+                    }
                     lastStreamAttemptTime = System.currentTimeMillis();
                     AppLogger.i(this, "Connecting to RTSP Stream: " + targetUrl);
                     Media media = new Media(libVLC, Uri.parse(targetUrl));
@@ -257,7 +280,8 @@ public class Reverse70MaiService extends Service {
             }
         });
 
-        // Switch sensor back to Front (sensor 0) & restore system network routing
+        // Switch sensor back to Front & restore system network routing.
+        // switchSensorHardware internally skips models without CGI support (Mstar).
         new Thread(() -> {
             DashcamNetworkRouter.switchSensorHardware(this, 0);
             DashcamNetworkRouter.unbindProcess(this);

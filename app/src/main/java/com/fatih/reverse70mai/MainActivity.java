@@ -1,7 +1,9 @@
 package com.fatih.reverse70mai;
 
+import android.Manifest;
 import android.app.Activity;
 import android.content.Intent;
+import android.content.pm.PackageManager;
 import android.net.Network;
 import android.net.Uri;
 import android.os.Build;
@@ -22,6 +24,7 @@ import java.util.List;
 
 public class MainActivity extends Activity {
     private static final int REQ_OVERLAY_PERM = 1001;
+    private static final int REQ_LOCATION_PERM = 1002;
 
     private TextView tvStatusTitle;
     private TextView tvWifiInfo;
@@ -83,6 +86,7 @@ public class MainActivity extends Activity {
         });
 
         checkOverlayPermission();
+        ensureLocationPermissionForSsid();
         startServiceExplicitly();
 
         btnTestOverlay.setOnClickListener(v -> {
@@ -134,55 +138,80 @@ public class MainActivity extends Activity {
 
         new Thread(() -> {
             try {
+                // 0. Model & IP detection (SSID -> device family -> DHCP gateway)
+                DashcamModel.ModelInfo model = DashcamModel.detect(this);
+                String camIp = DashcamModel.resolveCameraIp(this, model.family);
+                AppLogger.i(this, "0. Kamera Modeli: " + model.displayName
+                        + " | Aile: " + model.family
+                        + " | SSID: \"" + model.ssid + "\""
+                        + (model.isKnown() ? "" : " (SSID tablosunda yok, Hisi varsayıldı)"));
+                AppLogger.i(this, "0. Kamera IP (DHCP gateway / aile varsayılanı): " + camIp);
+
                 // 1. Wi-Fi interface & IP
                 Network wifiNet = DashcamNetworkRouter.getWifiNetwork(this);
                 AppLogger.i(this, "1. Wi-Fi Ağ Nesnesi: " + (wifiNet != null ? wifiNet.toString() : "YOK/BAĞLI DEĞİL"));
 
-                // 2. Gateway / Camera IP Reachability (Port 80)
+                // 2. Camera IP Reachability (Port 80)
                 boolean p80 = false;
                 try (Socket s = (wifiNet != null ? wifiNet.getSocketFactory().createSocket() : new Socket())) {
-                    s.connect(new InetSocketAddress("192.168.0.1", 80), 2000);
+                    s.connect(new InetSocketAddress(camIp, 80), 2000);
                     p80 = true;
                 } catch (Throwable t) {
                     p80 = false;
                 }
-                AppLogger.i(this, "2. 192.168.0.1 Port 80 (HTTP/CGI): " + (p80 ? "AÇIK (BAŞARILI)" : "KAPALI / ERİŞİLEMEZ"));
+                AppLogger.i(this, "2. " + camIp + " Port 80 (HTTP/CGI): " + (p80 ? "AÇIK (BAŞARILI)" : "KAPALI / ERİŞİLEMEZ"));
 
                 // 3. RTSP Standard Port 554 Reachability
                 boolean p554 = false;
                 try (Socket s = (wifiNet != null ? wifiNet.getSocketFactory().createSocket() : new Socket())) {
-                    s.connect(new InetSocketAddress("192.168.0.1", 554), 2000);
+                    s.connect(new InetSocketAddress(camIp, 554), 2000);
                     p554 = true;
                 } catch (Throwable t) {
                     p554 = false;
                 }
-                AppLogger.i(this, "3. 192.168.0.1 Port 554 (RTSP Standart): " + (p554 ? "AÇIK (BAŞARILI)" : "KAPALI"));
+                AppLogger.i(this, "3. " + camIp + " Port 554 (RTSP Standart): " + (p554 ? "AÇIK (BAŞARILI)" : "KAPALI"));
 
-                // 4. CGI Sensor Test
+                // 4. CGI Sensor Test (plain)
                 if (p80) {
                     try (Socket s = (wifiNet != null ? wifiNet.getSocketFactory().createSocket() : new Socket())) {
-                        s.connect(new InetSocketAddress("192.168.0.1", 80), 2000);
+                        s.connect(new InetSocketAddress(camIp, 80), 2000);
+                        s.setSoTimeout(2000);
                         OutputStream os = s.getOutputStream();
-                        os.write("GET /cgi-bin/setwifistream.cgi?sensor=1 HTTP/1.1\r\nHost: 192.168.0.1\r\nConnection: close\r\n\r\n".getBytes());
+                        os.write(("GET /cgi-bin/setwifistream.cgi?sensor=1 HTTP/1.1\r\nHost: " + camIp + "\r\nConnection: close\r\n\r\n").getBytes());
                         os.flush();
                         BufferedReader br = new BufferedReader(new InputStreamReader(s.getInputStream()));
                         String resp = br.readLine();
-                        AppLogger.i(this, "4. CGI /setwifistream Yanıtı: " + (resp != null ? resp : "BOŞ DÖNDÜ"));
+                        AppLogger.i(this, "4. CGI /setwifistream (plain) Yanıtı: " + (resp != null ? resp : "BOŞ DÖNDÜ"));
                     } catch (Throwable t) {
-                        AppLogger.w(this, "4. CGI /setwifistream Hatası: " + t.getMessage());
+                        AppLogger.w(this, "4. CGI /setwifistream (plain) Hatası: " + t.getMessage());
+                    }
+
+                    // 5. CGI Sensor Test (official app's MD5-signed variant)
+                    try (Socket s = (wifiNet != null ? wifiNet.getSocketFactory().createSocket() : new Socket())) {
+                        s.connect(new InetSocketAddress(camIp, 80), 2000);
+                        s.setSoTimeout(2000);
+                        OutputStream os = s.getOutputStream();
+                        String signedPath = DashcamModel.buildSignedSensorPath(1, "");
+                        os.write(("GET " + signedPath + " HTTP/1.1\r\nHost: " + camIp + "\r\nConnection: close\r\n\r\n").getBytes());
+                        os.flush();
+                        BufferedReader br = new BufferedReader(new InputStreamReader(s.getInputStream()));
+                        String resp = br.readLine();
+                        AppLogger.i(this, "5. CGI /setwifistream (imzalı) Yanıtı: " + (resp != null ? resp : "BOŞ DÖNDÜ"));
+                    } catch (Throwable t) {
+                        AppLogger.w(this, "5. CGI /setwifistream (imzalı) Hatası: " + t.getMessage());
                     }
                 }
 
-                // 5. Common Port Scan
+                // 6. Common Port Scan
                 int[] ports = new int[]{554, 8554, 80, 8080, 7070, 1935, 5544};
                 StringBuilder openPorts = new StringBuilder();
                 for (int p : ports) {
                     try (Socket s = (wifiNet != null ? wifiNet.getSocketFactory().createSocket() : new Socket())) {
-                        s.connect(new InetSocketAddress("192.168.0.1", p), 600);
+                        s.connect(new InetSocketAddress(camIp, p), 600);
                         openPorts.append(p).append(" ");
                     } catch (Throwable ignored) {}
                 }
-                AppLogger.i(this, "5. 192.168.0.1 Açık Portlar: " + (openPorts.length() > 0 ? openPorts.toString() : "HİÇBİRİ BULUNAMADI"));
+                AppLogger.i(this, "6. " + camIp + " Açık Portlar: " + (openPorts.length() > 0 ? openPorts.toString() : "HİÇBİRİ BULUNAMADI"));
 
                 // Flush logs to server
                 AppLogger.flushCache(this);
@@ -203,7 +232,7 @@ public class MainActivity extends Activity {
             Network wifiNet = DashcamNetworkRouter.getWifiNetwork(this);
             String foundWorking = null;
 
-            for (String candidate : StreamConfig.CANDIDATE_URLS) {
+            for (String candidate : StreamConfig.buildCandidates(this)) {
                 AppLogger.i(this, "Deneniyor: " + candidate);
                 try {
                     java.net.URI uri = new java.net.URI(candidate);
@@ -266,12 +295,30 @@ public class MainActivity extends Activity {
         }
     }
 
+    /**
+     * SSID okunabilirliği Android 9+ üzerinde konum iznine baglidir; model tespiti
+     * icin en iyi caba ile istenir (head unit tum izinleri otomatik verir).
+     */
+    private void ensureLocationPermissionForSsid() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q
+                && DashcamModel.readCurrentSsid(this).isEmpty()
+                && checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
+            requestPermissions(new String[]{
+                    Manifest.permission.ACCESS_FINE_LOCATION,
+                    Manifest.permission.ACCESS_COARSE_LOCATION
+            }, REQ_LOCATION_PERM);
+        }
+    }
+
     private void updateNetworkStatus() {
         Network wifiNet = DashcamNetworkRouter.getWifiNetwork(this);
+        DashcamModel.ModelInfo model = DashcamModel.detect(this);
+        String camIp = DashcamModel.resolveCameraIp(this, model.family);
+        String status = "Kamera: " + model.displayName + " | " + model.family + " | IP: " + camIp;
         if (wifiNet != null) {
-            tvWifiInfo.setText("Ağ Durumu: Wi-Fi arayüzü devrede (" + wifiNet + ").");
+            tvWifiInfo.setText(status + " | Wi-Fi aktif");
         } else {
-            tvWifiInfo.setText("Ağ Durumu: Wi-Fi bağlı değil veya algılanmadı.");
+            tvWifiInfo.setText(status + " | Wi-Fi bağlı değil");
         }
     }
 

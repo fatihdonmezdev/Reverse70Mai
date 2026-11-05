@@ -23,10 +23,8 @@ import java.net.Socket;
  */
 public class DashcamNetworkRouter {
     private static final String TAG = "DashcamNetworkRouter";
-    public static final String DASHCAM_IP = "192.168.0.1";
     public static final int DASHCAM_HTTP_PORT = 80;
     public static final int DASHCAM_RTSP_PORT = 554;
-    public static final String RTSP_URL = "rtsp://192.168.0.1:554/livestream/12";
 
     private static volatile Network currentWifiNetwork = null;
     private static ConnectivityManager.NetworkCallback wifiNetworkCallback = null;
@@ -153,56 +151,90 @@ public class DashcamNetworkRouter {
     }
 
     /**
+     * Resolves the connected dashcam's IP (DHCP gateway with family fallback).
+     */
+    public static String resolveDashcamIp(Context context) {
+        DashcamModel.ModelInfo model = DashcamModel.detect(context);
+        return DashcamModel.resolveCameraIp(context, model.family);
+    }
+
+    /**
      * Sends hardware sensor switch command to 70mai:
      * sensor=1 -> Rear camera sensor
      * sensor=0 -> Front camera sensor
+     *
+     * Hisi family: plain CGI first (proven on A410), then the official app's
+     * MD5-signed variant (empty connectKey) if the camera enforces signatures.
+     * Mstar family: no CGI command exists; switching happens via RTSP channel
+     * change (/liveRTSP/av5 rear), handled by the candidate list in the service.
+     * Legacy family: plain CGI attempted best-effort.
      */
     public static boolean switchSensorHardware(Context context, int sensor) {
+        DashcamModel.ModelInfo model = DashcamModel.detect(context);
+
+        if (model.family == DashcamModel.Family.MSTAR) {
+            AppLogger.i(context, model.displayName + " (MSTAR): setwifistream.cgi yok, RTSP kanal degisimi kullaniliyor");
+            return false;
+        }
+
+        String ip = DashcamModel.resolveCameraIp(context, model.family);
+        AppLogger.i(context, "Sensör geçişi -> " + model.displayName + " (" + model.family + ") @ " + ip + " sensor=" + sensor);
+
+        // Attempt 1: plain request (works on A410 and most Hisi firmware)
+        String status = sendCgiGet(context, ip, "/cgi-bin/setwifistream.cgi?sensor=" + sensor, 2500);
+        AppLogger.i(context, "70mai setwifistream sensor=" + sensor + " (plain) -> " + (status != null ? status : "YANIT YOK"));
+        boolean ok = status != null && status.contains("200");
+
+        // Attempt 2: official app's signed request (empty connectKey) for firmware that requires it
+        if (!ok && model.family == DashcamModel.Family.HISI) {
+            String signedPath = DashcamModel.buildSignedSensorPath(sensor, "");
+            String signedStatus = sendCgiGet(context, ip, signedPath, 2500);
+            AppLogger.i(context, "70mai setwifistream sensor=" + sensor + " (imzalı) -> " + (signedStatus != null ? signedStatus : "YANIT YOK"));
+            ok = signedStatus != null && signedStatus.contains("200");
+        }
+
+        // Also send setrearview.cgi for A810/A810 Lite models
+        try {
+            String rearStatus = sendCgiGet(context, ip,
+                    "/cgi-bin/setrearview.cgi?enable=" + (sensor == 1 ? "1" : "0"), 1500);
+            AppLogger.i(context, "70mai setrearview enable=" + (sensor == 1 ? "1" : "0") + " -> " + (rearStatus != null ? rearStatus : "YANIT YOK"));
+        } catch (Throwable t2) {
+            // Not all firmware models support setrearview, ignore
+        }
+
+        try {
+            Thread.sleep(400); // Sensor settling delay
+        } catch (InterruptedException ie) {
+            Thread.currentThread().interrupt();
+        }
+        return ok;
+    }
+
+    /**
+     * Sends a raw HTTP GET over a Wi-Fi-bound socket and returns the status line.
+     */
+    private static String sendCgiGet(Context context, String ip, String path, int timeoutMs) {
         Socket socket = null;
         try {
             socket = createWifiSocket(context);
-            socket.connect(new InetSocketAddress(DASHCAM_IP, DASHCAM_HTTP_PORT), 2500);
-            socket.setSoTimeout(2500);
+            socket.connect(new InetSocketAddress(ip, DASHCAM_HTTP_PORT), timeoutMs);
+            socket.setSoTimeout(timeoutMs);
 
             OutputStream os = socket.getOutputStream();
-            String req1 = "GET /cgi-bin/setwifistream.cgi?sensor=" + sensor + " HTTP/1.1\r\n" +
-                    "Host: " + DASHCAM_IP + "\r\n" +
+            String request = "GET " + path + " HTTP/1.1\r\n" +
+                    "Host: " + ip + "\r\n" +
                     "Connection: close\r\n\r\n";
-            os.write(req1.getBytes());
+            os.write(request.getBytes());
             os.flush();
 
             BufferedReader br = new BufferedReader(new InputStreamReader(socket.getInputStream()));
-            String statusLine = br.readLine();
-            AppLogger.i(context, "70mai setwifistream sensor=" + sensor + " -> " + statusLine);
-            socket.close();
-
-            // Also send setrearview.cgi for A810/A810 Lite models
-            try {
-                Socket s2 = createWifiSocket(context);
-                s2.connect(new InetSocketAddress(DASHCAM_IP, DASHCAM_HTTP_PORT), 1500);
-                s2.setSoTimeout(1500);
-                OutputStream os2 = s2.getOutputStream();
-                String req2 = "GET /cgi-bin/setrearview.cgi?enable=" + (sensor == 1 ? "1" : "0") + " HTTP/1.1\r\n" +
-                        "Host: " + DASHCAM_IP + "\r\n" +
-                        "Connection: close\r\n\r\n";
-                os2.write(req2.getBytes());
-                os2.flush();
-                BufferedReader br2 = new BufferedReader(new InputStreamReader(s2.getInputStream()));
-                String resp2 = br2.readLine();
-                AppLogger.i(context, "70mai setrearview enable=" + (sensor == 1 ? "1" : "0") + " -> " + resp2);
-                s2.close();
-            } catch (Throwable t2) {
-                // Not all firmware models support setrearview, ignore
-            }
-
-            Thread.sleep(400); // Sensor settling delay
-            return statusLine != null && statusLine.contains("200");
+            return br.readLine();
         } catch (Throwable t) {
-            AppLogger.e(context, "Failed to switch 70mai sensor hardware to " + sensor, t);
+            return null;
+        } finally {
             if (socket != null) {
                 try { socket.close(); } catch (Throwable ignored) {}
             }
-            return false;
         }
     }
 }
