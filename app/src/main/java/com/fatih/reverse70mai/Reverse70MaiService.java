@@ -199,9 +199,10 @@ public class Reverse70MaiService extends Service {
                     options.add("--network-caching=200");
                     options.add("--no-audio");
                     options.add("--clock-jitter=0");
-                    options.add("--drop-late-frames");
-                    options.add("--skip-frames");
-                    options.add("--avcodec-hurry-up");
+                    options.add("--avcodec-hw=any");
+                    options.add("--file-caching=200");
+                    options.add("--live-caching=200");
+                    options.add("--avcodec-fast");
 
                     libVLC = new LibVLC(this, options);
                     mediaPlayer = new MediaPlayer(libVLC);
@@ -250,13 +251,12 @@ public class Reverse70MaiService extends Service {
                     lastStreamAttemptTime = System.currentTimeMillis();
                     AppLogger.i(this, "Connecting to RTSP Stream: " + targetUrl);
                     Media media = new Media(libVLC, Uri.parse(targetUrl));
-                    media.setHWDecoderEnabled(true, false);
+                    media.setHWDecoderEnabled(true, true);
                     media.addOption(":rtsp-tcp");
                     media.addOption(":network-caching=200");
                     media.addOption(":clock-jitter=0");
-                    media.addOption(":drop-late-frames");
-                    media.addOption(":skip-frames");
-                    media.addOption(":avcodec-hurry-up");
+                    media.addOption(":avcodec-hw=any");
+                    media.addOption(":codec=mediacodec,all");
 
                     mediaPlayer.setMedia(media);
                     media.release();

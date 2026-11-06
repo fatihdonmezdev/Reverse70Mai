@@ -449,9 +449,10 @@ public class MainActivity extends Activity {
                     options.add("--network-caching=200");
                     options.add("--no-audio");
                     options.add("--clock-jitter=0");
-                    options.add("--drop-late-frames");
-                    options.add("--skip-frames");
-                    options.add("--avcodec-hurry-up");
+                    options.add("--avcodec-hw=any");
+                    options.add("--file-caching=200");
+                    options.add("--live-caching=200");
+                    options.add("--avcodec-fast");
 
                     inlineLibVLC = new LibVLC(this, options);
                     inlineMediaPlayer = new MediaPlayer(inlineLibVLC);
@@ -478,6 +479,12 @@ public class MainActivity extends Activity {
                     });
 
                     Media media = new Media(inlineLibVLC, Uri.parse(url));
+                    media.setHWDecoderEnabled(true, true);
+                    media.addOption(":rtsp-tcp");
+                    media.addOption(":network-caching=200");
+                    media.addOption(":clock-jitter=0");
+                    media.addOption(":avcodec-hw=any");
+                    media.addOption(":codec=mediacodec,all");
                     media.setHWDecoderEnabled(true, false);
                     media.addOption(":rtsp-tcp");
                     media.addOption(":network-caching=200");
