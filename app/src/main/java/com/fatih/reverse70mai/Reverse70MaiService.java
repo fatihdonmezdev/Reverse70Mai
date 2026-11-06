@@ -17,7 +17,7 @@ import android.os.Looper;
 import android.util.Log;
 import android.view.Gravity;
 import android.view.LayoutInflater;
-import android.view.SurfaceView;
+import android.view.TextureView;
 import android.view.View;
 import android.view.WindowManager;
 
@@ -47,7 +47,7 @@ public class Reverse70MaiService extends Service {
 
     private WindowManager windowManager;
     private View overlayView;
-    private SurfaceView surfaceOverlay;
+    private TextureView videoTextureView;
     private LibVLC libVLC;
     private MediaPlayer mediaPlayer;
     private boolean isOverlayShowing = false;
@@ -132,9 +132,11 @@ public class Reverse70MaiService extends Service {
                 int overlayWidth = 1250;
                 int overlayHeight = 720;
 
-                int windowType = WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY;
-                if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) {
-                    windowType = WindowManager.LayoutParams.TYPE_PHONE;
+                int windowType;
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                    windowType = WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY;
+                } else {
+                    windowType = WindowManager.LayoutParams.TYPE_SYSTEM_ERROR;
                 }
 
                 WindowManager.LayoutParams params = new WindowManager.LayoutParams(
@@ -153,15 +155,19 @@ public class Reverse70MaiService extends Service {
 
                 LayoutInflater inflater = LayoutInflater.from(this);
                 overlayView = inflater.inflate(R.layout.overlay_camera, null);
-                surfaceOverlay = overlayView.findViewById(R.id.surfaceOverlay);
+                videoTextureView = overlayView.findViewById(R.id.videoTextureView);
 
                 try {
                     windowManager.addView(overlayView, params);
                 } catch (Throwable wt) {
-                    // Fallback to TYPE_SYSTEM_ALERT or TYPE_PHONE if overlay failed
-                    AppLogger.w(this, "Standard overlay add failed (" + wt.getMessage() + "), retrying with fallback type");
-                    params.type = WindowManager.LayoutParams.TYPE_SYSTEM_ALERT;
-                    windowManager.addView(overlayView, params);
+                    AppLogger.w(this, "Standard overlay add failed (" + wt.getMessage() + "), retrying with TYPE_SYSTEM_ERROR");
+                    params.type = WindowManager.LayoutParams.TYPE_SYSTEM_ERROR;
+                    try {
+                        windowManager.addView(overlayView, params);
+                    } catch (Throwable wt2) {
+                        params.type = WindowManager.LayoutParams.TYPE_SYSTEM_ALERT;
+                        windowManager.addView(overlayView, params);
+                    }
                 }
                 isOverlayShowing = true;
 
@@ -190,20 +196,19 @@ public class Reverse70MaiService extends Service {
                 try {
                     ArrayList<String> options = new ArrayList<>();
                     options.add("--rtsp-tcp");
-                    options.add("--network-caching=150");
+                    options.add("--network-caching=200");
                     options.add("--no-audio");
                     options.add("--clock-jitter=0");
                     options.add("--drop-late-frames");
                     options.add("--skip-frames");
                     options.add("--avcodec-hurry-up");
-                    options.add("--avcodec-hw=none");
 
                     libVLC = new LibVLC(this, options);
                     mediaPlayer = new MediaPlayer(libVLC);
 
-                    if (surfaceOverlay != null) {
+                    if (videoTextureView != null) {
                         IVLCVout vout = mediaPlayer.getVLCVout();
-                        vout.setVideoView(surfaceOverlay);
+                        vout.setVideoView(videoTextureView);
                         vout.setWindowSize(1250, 720);
                         vout.attachViews();
                     }
@@ -229,6 +234,8 @@ public class Reverse70MaiService extends Service {
                             }
                         } else if (event.type == MediaPlayer.Event.Playing) {
                             AppLogger.i(this, "70mai RTSP Rear Stream playing successfully!");
+                        } else if (event.type == MediaPlayer.Event.Vout) {
+                            AppLogger.i(this, "Video donanım ekran çıkışı sağlandı (Vout event: video kareleri çiziliyor)!");
                         }
                     });
 
@@ -243,14 +250,13 @@ public class Reverse70MaiService extends Service {
                     lastStreamAttemptTime = System.currentTimeMillis();
                     AppLogger.i(this, "Connecting to RTSP Stream: " + targetUrl);
                     Media media = new Media(libVLC, Uri.parse(targetUrl));
-                    media.setHWDecoderEnabled(false, false);
+                    media.setHWDecoderEnabled(true, false);
                     media.addOption(":rtsp-tcp");
-                    media.addOption(":network-caching=150");
+                    media.addOption(":network-caching=200");
                     media.addOption(":clock-jitter=0");
                     media.addOption(":drop-late-frames");
                     media.addOption(":skip-frames");
                     media.addOption(":avcodec-hurry-up");
-                    media.addOption(":avcodec-hw=none");
 
                     mediaPlayer.setMedia(media);
                     media.release();
@@ -271,7 +277,7 @@ public class Reverse70MaiService extends Service {
                 if (overlayView != null) {
                     windowManager.removeView(overlayView);
                     overlayView = null;
-                    surfaceOverlay = null;
+                    videoTextureView = null;
                 }
                 isOverlayShowing = false;
                 Log.i(TAG, "Reverse overlay dismissed successfully.");

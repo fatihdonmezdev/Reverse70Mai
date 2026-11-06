@@ -171,8 +171,9 @@ public final class DashcamModel {
     }
 
     /**
-     * Reads the SSID of the currently connected Wi-Fi (best effort; may be empty
-     * when location access is restricted on newer Android versions).
+     * Reads the SSID of the currently connected Wi-Fi (best effort).
+     * If WifiInfo returns <unknown ssid> due to Android location permission,
+     * inspects getConfiguredNetworks() to find the active or 70mai network name.
      */
     public static String readCurrentSsid(Context context) {
         try {
@@ -183,11 +184,26 @@ public final class DashcamModel {
                     String ssid = info.getSSID();
                     if (ssid != null) {
                         ssid = ssid.replace("\"", "").trim();
-                        if (!ssid.isEmpty() && !"<unknown ssid>".equalsIgnoreCase(ssid)) {
+                        if (!ssid.isEmpty() && !"<unknown ssid>".equalsIgnoreCase(ssid) && !"0x".equalsIgnoreCase(ssid)) {
                             return ssid;
                         }
                     }
                 }
+
+                // Fallback: Check configured networks for 70mai SSID
+                try {
+                    List<android.net.wifi.WifiConfiguration> configs = wm.getConfiguredNetworks();
+                    if (configs != null) {
+                        for (android.net.wifi.WifiConfiguration config : configs) {
+                            if (config != null && config.SSID != null) {
+                                String clean = config.SSID.replace("\"", "").trim();
+                                if (clean.startsWith("70mai_")) {
+                                    return clean;
+                                }
+                            }
+                        }
+                    }
+                } catch (Throwable ignored) {}
             }
         } catch (Throwable ignored) {}
         return "";

@@ -15,7 +15,13 @@ import android.widget.EditText;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import org.videolan.libvlc.LibVLC;
+import org.videolan.libvlc.Media;
+import org.videolan.libvlc.MediaPlayer;
+import org.videolan.libvlc.interfaces.IVLCVout;
+
 import java.io.BufferedReader;
+import java.util.ArrayList;
 import java.io.InputStreamReader;
 import java.io.OutputStream;
 import java.net.InetSocketAddress;
@@ -37,6 +43,14 @@ public class MainActivity extends Activity {
     private Button btnCheckUpdate;
     private TextView tvLogs;
     private Button btnSendLogsNow;
+
+    // Inline preview
+    private Button btnToggleInlinePreview;
+    private android.view.TextureView inlineTextureView;
+    private TextView tvInlineStatus;
+    private LibVLC inlineLibVLC;
+    private MediaPlayer inlineMediaPlayer;
+    private boolean isInlinePlaying = false;
 
     private boolean currentIsRear = true;
 
@@ -62,6 +76,12 @@ public class MainActivity extends Activity {
         btnCheckUpdate = findViewById(R.id.btnCheckUpdate);
         tvLogs = findViewById(R.id.tvLogs);
         btnSendLogsNow = findViewById(R.id.btnSendLogsNow);
+
+        btnToggleInlinePreview = findViewById(R.id.btnToggleInlinePreview);
+        inlineTextureView = findViewById(R.id.inlineTextureView);
+        tvInlineStatus = findViewById(R.id.tvInlineStatus);
+
+        btnToggleInlinePreview.setOnClickListener(v -> toggleInlinePreview());
 
         if (tvLogs != null) {
             tvLogs.setMovementMethod(new ScrollingMovementMethod());
@@ -399,6 +419,102 @@ public class MainActivity extends Activity {
                         .show();
             });
         }).start();
+    }
+
+    private void toggleInlinePreview() {
+        if (isInlinePlaying) {
+            stopInlinePreview();
+            btnToggleInlinePreview.setText("Kamerayı Başlat");
+            tvInlineStatus.setText("Canlı önizleme kapalı\n(Kamerayı Başlat butonuna basın)");
+            tvInlineStatus.setVisibility(android.view.View.VISIBLE);
+        } else {
+            startInlinePreview();
+            btnToggleInlinePreview.setText("Durdur");
+            tvInlineStatus.setText("Kameraya bağlanıyor...");
+        }
+    }
+
+    private void startInlinePreview() {
+        stopInlinePreview();
+        isInlinePlaying = true;
+
+        new Thread(() -> {
+            DashcamNetworkRouter.bindProcessToWifi(this);
+            String url = StreamConfig.getActiveRtspUrl(this);
+
+            runOnUiThread(() -> {
+                try {
+                    ArrayList<String> options = new ArrayList<>();
+                    options.add("--rtsp-tcp");
+                    options.add("--network-caching=200");
+                    options.add("--no-audio");
+                    options.add("--clock-jitter=0");
+                    options.add("--drop-late-frames");
+                    options.add("--skip-frames");
+                    options.add("--avcodec-hurry-up");
+
+                    inlineLibVLC = new LibVLC(this, options);
+                    inlineMediaPlayer = new MediaPlayer(inlineLibVLC);
+
+                    if (inlineTextureView != null) {
+                        IVLCVout vout = inlineMediaPlayer.getVLCVout();
+                        vout.setVideoView(inlineTextureView);
+                        vout.setWindowSize(inlineTextureView.getWidth() > 0 ? inlineTextureView.getWidth() : 640,
+                                inlineTextureView.getHeight() > 0 ? inlineTextureView.getHeight() : 360);
+                        vout.attachViews();
+                    }
+
+                    inlineMediaPlayer.setEventListener(event -> {
+                        if (event.type == MediaPlayer.Event.Playing) {
+                            runOnUiThread(() -> tvInlineStatus.setVisibility(android.view.View.GONE));
+                        } else if (event.type == MediaPlayer.Event.Vout) {
+                            runOnUiThread(() -> tvInlineStatus.setVisibility(android.view.View.GONE));
+                        } else if (event.type == MediaPlayer.Event.EncounteredError) {
+                            runOnUiThread(() -> {
+                                tvInlineStatus.setText("Yayın hatası, tekrar deneniyor...");
+                                tvInlineStatus.setVisibility(android.view.View.VISIBLE);
+                            });
+                        }
+                    });
+
+                    Media media = new Media(inlineLibVLC, Uri.parse(url));
+                    media.setHWDecoderEnabled(true, false);
+                    media.addOption(":rtsp-tcp");
+                    media.addOption(":network-caching=200");
+                    inlineMediaPlayer.setMedia(media);
+                    media.release();
+                    inlineMediaPlayer.play();
+                } catch (Throwable t) {
+                    AppLogger.e(this, "Inline preview error: " + t.getMessage(), t);
+                }
+            });
+        }).start();
+    }
+
+    private void stopInlinePreview() {
+        isInlinePlaying = false;
+        if (inlineMediaPlayer != null) {
+            try {
+                inlineMediaPlayer.stop();
+                if (inlineMediaPlayer.getVLCVout() != null) {
+                    inlineMediaPlayer.getVLCVout().detachViews();
+                }
+                inlineMediaPlayer.release();
+            } catch (Throwable ignored) {}
+            inlineMediaPlayer = null;
+        }
+        if (inlineLibVLC != null) {
+            try { inlineLibVLC.release(); } catch (Throwable ignored) {}
+            inlineLibVLC = null;
+        }
+    }
+
+    @Override
+    protected void onPause() {
+        super.onPause();
+        if (isInlinePlaying) {
+            toggleInlinePreview();
+        }
     }
 
     @Override
