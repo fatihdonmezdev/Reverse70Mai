@@ -372,6 +372,8 @@ public class MainActivity extends Activity {
         new Thread(() -> {
             String message;
             boolean openDownloadsFolder = false;
+            // Temporarily unbind process so OTA network traffic uses internet (hotspot or cellular)
+            DashcamNetworkRouter.unbindProcess(this);
             try {
                 String currentVersion = getPackageManager().getPackageInfo(getPackageName(), 0).versionName;
                 OtaUpdater.Update update = OtaUpdater.check(currentVersion);

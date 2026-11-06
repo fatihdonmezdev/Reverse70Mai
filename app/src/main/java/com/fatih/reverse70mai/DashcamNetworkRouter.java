@@ -49,8 +49,9 @@ public class DashcamNetworkRouter {
             public void onAvailable(Network network) {
                 currentWifiNetwork = network;
                 Log.i(TAG, "Wi-Fi Network available -> " + network);
-                // Bind process so all LibVLC and socket traffic automatically routes to Wi-Fi
-                bindProcessToWifi(context);
+                // Do NOT bind entire process here permanently.
+                // Binding is only done specifically when streaming RTSP/CGI to dashcam,
+                // so OTA check, GitHub, and backend logs can always route through internet.
             }
 
             @Override
